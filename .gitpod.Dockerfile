@@ -1,6 +1,6 @@
 # Dev container for OpenPortfolio
 
-FROM gitpod/workspace-base:latest
+FROM gitpod/workspace-base:commit-abd6818f4a9db3b2e7c7d17d4af5fdba17b0ccb4
 
 USER gitpod
 
@@ -23,7 +23,7 @@ RUN curl -fsSL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-ins
     && sudo rm -rf /tmp/*
 
 # Update dependencies and install poetry.
-ENV PIP_USER=false OP_WORKSPACE=/workspace/OpenPortfolio
+ENV PIP_USER=no OP_WORKSPACE=/workspace/OpenPortfolio
 RUN sudo apt-get update -y && \
     sudo apt-get upgrade -y && \
     curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3

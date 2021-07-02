@@ -1,0 +1,10 @@
+image:
+  file: .gitpod.Dockerfile
+ports:
+- port: 8000
+vscode:
+  extensions:
+    - ms-azuretools.vscode-docker
+    - ms-python.python
+tasks:
+  - command: poetry shell

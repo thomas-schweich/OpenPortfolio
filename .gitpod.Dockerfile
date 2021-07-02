@@ -6,7 +6,7 @@ USER gitpod
 
 RUN sudo install-packages python3-pip
 
-# Based on the "Python" section of https://github.com/gitpod-io/workspace-images/blob/master/full/Dockerfile
+# Based on the "Python" section of https://github.com/gitpod-io/workspace-images/blob/master/full/Dockerfile.
 ENV PATH=$HOME/.pyenv/bin:$HOME/.pyenv/shims:$PATH
 RUN curl -fsSL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash \
     && { echo; \
@@ -22,11 +22,8 @@ RUN curl -fsSL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-ins
         twine \
     && sudo rm -rf /tmp/*
 
+# Update dependencies and install poetry.
 ENV PIP_USER=false OP_WORKSPACE=/workspace/OpenPortfolio
 RUN sudo apt-get update -y && \
     sudo apt-get upgrade -y && \
-    sudo apt-get install -y python3.9 python3.9-venv && \
-    curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3.9 - && \
-    . $HOME/.poetry/env && \
-    cd ${OP_WORKSPACE} && \
-    poetry install
+    curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3

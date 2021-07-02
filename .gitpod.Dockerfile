@@ -27,6 +27,6 @@ RUN sudo apt-get update -y && \
     sudo apt-get upgrade -y && \
     sudo apt-get install -y python3.9 python3.9-venv && \
     curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3.9 - && \
-    source $HOME/.poetry/env && \
+    . $HOME/.poetry/env && \
     cd ${OP_WORKSPACE} && \
     poetry install

@@ -1,5 +1,5 @@
 image:
-  file: .gitpod.Dockerfile
+  file: Dockerfile
 ports:
 - port: 8000
 vscode:
@@ -8,6 +8,6 @@ vscode:
     - ms-python.python
 tasks:
   - before: source ${HOME}/.poetry/env
-    command: poetry shell
+    command: PIP_USER=no poetry shell
     env:
       PIP_USER: no

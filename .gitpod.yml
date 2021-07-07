@@ -1,5 +1,4 @@
-image:
-  file: Dockerfile
+image: thomasschweich/open-portfolio:op-gitpod
 ports:
 - port: 8000
 vscode:

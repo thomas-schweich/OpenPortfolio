@@ -14,23 +14,23 @@
 FROM buildpack-deps:focal AS op_base
 RUN apt-get update
 RUN apt-get install -y \
-        apt-utils \
-        zip \
-        unzip \
-        bash-completion \
-        build-essential \
-        htop \
-        jq \
-        less \
-        locales \
-        man-db \
-        nano \
-        software-properties-common \
-        sudo \
-        time \
-        vim \
-        lsof \
-        ssl-cert \
+    apt-utils \
+    zip \
+    unzip \
+    bash-completion \
+    build-essential \
+    htop \
+    jq \
+    less \
+    locales \
+    man-db \
+    nano \
+    software-properties-common \
+    sudo \
+    time \
+    vim \
+    lsof \
+    ssl-cert \
     && locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 RUN add-apt-repository -y ppa:git-core/ppa \
@@ -51,9 +51,9 @@ RUN add-apt-repository -y ppa:git-core/ppa \
 FROM op_base AS op_minimal
 ARG OP_USER=op-admin
 RUN useradd -l -u 30000 -G sudo -md /home/${OP_USER} -s \
-        /bin/bash -p ${OP_USER} ${OP_USER} && \
+    /bin/bash -p ${OP_USER} ${OP_USER} && \
     sed -i.bak -e 's/%sudo\s\+ALL=(ALL\(:ALL\)\?)\s\+ALL/%sudo ALL=NOPASSWD:ALL/g' \
-    /etc/sudoers    
+    /etc/sudoers
 
 ENV HOME=/home/${OP_USER}
 WORKDIR ${HOME}
@@ -61,20 +61,20 @@ USER ${OP_USER}
 RUN sudo echo "Running 'sudo' for ${OP_USER}." && \
     mkdir ${HOME}/.bashrc.d && \
     (echo; echo "for i in \$(ls \${HOME}/.bashrc.d/*); do source \$i; done"; echo) \
-        >> ${HOME}/.bashrc
+    >> ${HOME}/.bashrc
 RUN sudo apt-get install -y python3-pip
 ENV PATH=${HOME}/.pyenv/bin:${HOME}/.pyenv/shims:$PATH
 RUN curl -fsSL \ 
-        https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash \
+    https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash \
     && { echo; \
-        echo 'eval "$(pyenv init -)"'; \
-        echo 'eval "$(pyenv virtualenv-init -)"'; } >> ${HOME}/.bashrc.d/60-python \
+    echo 'eval "$(pyenv init -)"'; \
+    echo 'eval "$(pyenv virtualenv-init -)"'; } >> ${HOME}/.bashrc.d/60-python \
     && pyenv update \
     && pyenv install 3.9.6 \
     && pyenv global 3.9.6 \
     && python3 -m pip install --no-cache-dir --upgrade pip \
     && python3 -m pip install --no-cache-dir --upgrade \
-        setuptools wheel virtualenv \
+    setuptools wheel virtualenv \
     && sudo rm -rf /tmp/*
 ENV POETRY_VERSION='1.1.7'
 RUN python3 -m pip install poetry=="${POETRY_VERSION}"
@@ -87,8 +87,8 @@ RUN sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
 WORKDIR ${OP_WORKSPACE}
 RUN curl -sSL \
     https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py \
-        | python - --version "${POETRY_VERSION}" && \
-        . $HOME/.poetry/env
+    | python - --version "${POETRY_VERSION}" && \
+    . $HOME/.poetry/env
 RUN python3 -m venv venv
 COPY pyproject.toml poetry.lock ./
 RUN . venv/bin/activate && poetry install --no-dev --no-root

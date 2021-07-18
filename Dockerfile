@@ -1,6 +1,13 @@
 # Multi-staged container spec for OpenPortfolio. 
 # This spec will ultimately encompass containers for both development and production.
 
+ARG OP_PY_VERSION=3.9.6
+ARG OP_BUILD=/open-portfolio/build
+ARG OP_DEPS=/open-portfolio/deps
+ARG OP_PYTHON_DIR=${OP_DEPS}/python${OP_PY_VERSION}
+ARG OP_VENV_DIR=${OP_DEPS}/venv
+ARG OP_PYTHON=${OP_PYTHON_DIR}/bin/python3
+
 ####################################### op-base #######################################
 # - Consists of an Ubuntu 20.04 image with the software from buildpack 
 # - Installs some additional system utilities which are generally expected on a Linux 
@@ -8,8 +15,6 @@
 #   - `sudo` is included for use by *NON*-root users who are created down the line.
 #   - The root user should never use sudo to become another user, as this is a 
 #     security risk.
-# - Does not perform any user-installs (nor does it create any users), thus does not 
-#   include any software specific to OpenPortfolio.
 #######################################################################################
 FROM buildpack-deps:focal AS op-base
 RUN apt-get update
@@ -31,85 +36,110 @@ RUN apt-get install -y \
     vim \
     lsof \
     ssl-cert \
+    wget \
+    tar \
     && locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 RUN add-apt-repository -y ppa:git-core/ppa \
     && apt-get install -y git
 
+#################################### op-py-build ######################################
+# Extends op-base.
+# - Generates a self-contained python executable in the dependencies directory.
+#######################################################################################
+FROM op-base AS op-py-build
+ARG OP_PY_VERSION OP_PYTHON_DIR OP_PYTHON OP_BUILD
+ENV OP_PYTHON_SOURCES=${OP_BUILD}/python${OP_PY_VERSION}-sources
+RUN apt-get install -y \
+    wget \
+    tar \
+    build-essential \
+    checkinstall \
+    libreadline-gplv2-dev \
+    libncursesw5-dev \
+    libssl-dev \
+    libsqlite3-dev \
+    tk-dev \
+    libgdbm-dev \
+    libc6-dev \
+    libbz2-dev
+RUN mkdir -p ${OP_PYTHON_SOURCES} ${OP_PYTHON_DIR}
+WORKDIR ${OP_PYTHON_SOURCES}
+RUN wget https://www.python.org/ftp/python/${OP_PY_VERSION}/Python-${OP_PY_VERSION}.tgz
+RUN tar xzf Python-${OP_PY_VERSION}.tgz
+WORKDIR ${OP_PYTHON_SOURCES}/Python-${OP_PY_VERSION}
+RUN ./configure --prefix=${OP_PYTHON_DIR}
+RUN make
+RUN make test
+RUN make install
+RUN test "$(${OP_PYTHON} --version)" = "Python ${OP_PY_VERSION}"
+
 ###################################### op-minimal #####################################
-# - Introduces the op-admin user and pyenv with python3.9.
-# - Configures passwordless `sudo`.
-# - Adds `.bashrc.d` and sources it in `.bashrc`.
-# - Performs an initial `sudo` call as op-admin.
-# - Adds python3.9 via pyenv.
-# - Adds poetry.
-# - Adds all common OpenPortfolio dependencies to a virtualenv.
-# - Adds the OpenPortfolio sources in a separate step after dependency installation.
-#   - This prevents the container from requiring a rebuild of all dependencies every
-#     time the sources change.
+# Extends op-base.
+# - Copies the isolated python installation from op-py-build.
+# - Installs poetry into the isolated python.
+# - Adds the workspace directory with pyproject.toml + poetry.lock.
+# - Adds the venv containing poetry and all OpenPortfolio dependencies.
 #######################################################################################
 FROM op-base AS op-minimal
-ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000 OP_PY_VERSION=3.9.6
-ENV HOME=/home/${OP_USER}
+ARG OP_VENV_DIR OP_PYTHON OP_PYTHON_DIR OP_POETRY_VERSION='1.1.7' OP_BUILD OP_DEPS
+ENV OP_BUILD_PROJ=${OP_BUILD}/project
 
-RUN useradd -l -u 30000 -G sudo -md ${HOME} -s \
+COPY --from=op-py-build ${OP_DEPS} ${OP_DEPS}
+RUN ${OP_PYTHON} -m pip install --no-cache-dir --upgrade pip && \
+    ${OP_PYTHON} -m pip install --no-cache-dir --upgrade setuptools wheel virtualenv
+ENV POETRY_VERSION='1.1.7' PIP_USER=no
+RUN ${OP_PYTHON} -m pip install --prefix=${OP_PYTHON_DIR} poetry==${POETRY_VERSION}
+
+RUN mkdir -p ${OP_VENV_DIR}
+RUN ${OP_PYTHON} -m venv ${OP_VENV_DIR}
+ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+
+RUN mkdir -p ${OP_BUILD_PROJ}
+WORKDIR ${OP_BUILD_PROJ}
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-dev --no-root
+
+######################################## op-gitpod ####################################
+# Extends gitpod/workspace-full:latest.
+# - Copies and configures the dependencies from op-minimal.
+#######################################################################################
+FROM gitpod/workspace-full:latest AS op-gitpod
+ARG OP_PY_VERSION=3.9.6 OP_DEPS OP_PYTHON_DIR OP_VENV_DIR
+
+USER gitpod
+COPY --from=op-minimal --chown=gitpod:gitpod ${OP_DEPS} ${OP_DEPS}
+ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+
+######################################## op-dev #######################################
+# Extends op-base.
+# - Creates and configures the op-admin user.
+# - Copies dependencies from op-minimal.
+# - Creates the workspace and copies the OpenPortfolio sources into it.
+# - Installs OpenPortfolio itself, editable, into the virtualenv.
+#######################################################################################
+FROM op-base AS op-dev
+ARG OP_PYTHON_DIR OP_VENV_DIR OP_DEPS
+ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000
+
+ENV HOME=/home/${OP_USER}
+RUN useradd -l -u ${OP_UID} -G sudo -md ${HOME} -s \
     /bin/bash -p ${OP_USER} ${OP_USER} && \
     sed -i.bak -e 's/%sudo\s\+ALL=(ALL\(:ALL\)\?)\s\+ALL/%sudo ALL=NOPASSWD:ALL/g' \
     /etc/sudoers
 
-WORKDIR ${HOME}
 USER ${OP_USER}
+WORKDIR ${HOME}
 RUN sudo echo "Running 'sudo' for ${OP_USER}." && \
     mkdir ${HOME}/.bashrc.d && \
+    touch ${HOME}/.bashrc.d/init && \
     (echo; echo "for i in \$(ls \${HOME}/.bashrc.d/*); do source \$i; done"; echo) \
     >> ${HOME}/.bashrc
-RUN sudo apt-get install -y python3-pip
-ENV PATH=${HOME}/.pyenv/bin:${HOME}/.pyenv/shims:$PATH
-RUN curl -fsSL \ 
-    https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash \
-    && { echo; \
-    echo 'eval "$(pyenv init -)"'; \
-    echo 'eval "$(pyenv virtualenv-init -)"'; } >> ${HOME}/.bashrc.d/60-python \
-    && pyenv update \
-    && pyenv install ${OP_PY_VERSION} \
-    && pyenv global ${OP_PY_VERSION} \
-    && python3 -m pip install --no-cache-dir --upgrade pip \
-    && python3 -m pip install --no-cache-dir --upgrade \
-    setuptools wheel virtualenv \
-    && sudo rm -rf /tmp/*
-ENV POETRY_VERSION='1.1.7' PIP_USER=no
-RUN sudo mkdir -p /open-portfolio/venv && \
-    sudo chown ${OP_USER}:${OP_USER} /open-portfolio/venv 
-RUN python3 -m venv --copies /open-portfolio/venv
-RUN . /open-portfolio/venv/bin/activate && pip install poetry==${POETRY_VERSION}
-ENV PATH="${PATH}:/open-portfolio/venv/bin"
-RUN sudo mkdir -p ${OP_WORKSPACE} && sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
-COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-dev --no-root
+
+COPY --from=op-minimal --chown=${OP_USER}:${OP_USER} ${OP_DEPS} ${OP_DEPS}
+ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+
+COPY ./ ${OP_WORKSPACE}
 
 WORKDIR ${OP_WORKSPACE}
-COPY ./ ./
-
-######################################## op-gitpod ####################################
-# Extends gitpod/workspace-full:latest.
-# - Installs the correct version of python.
-# - Copies the virtualenv from op-minimal.
-# - Adds the open-portfolio/venv to PATH.
-# - Symlinks the target of python3 in the op-dev virtualenv to the local python.
-#######################################################################################
-FROM gitpod/workspace-full:latest AS op-gitpod
-ARG OP_PY_VERSION=3.9.6
-
-USER gitpod
-RUN pyenv install ${OP_PY_VERSION} && pyenv global ${OP_PY_VERSION}
-RUN sudo mkdir -p /open-portfolio/venv && sudo chown gitpod:gitpod /open-portfolio/venv 
-COPY --from=op-minimal --chown=${GITPOD_USER}:${GITPOD_USER} \
-    /open-portfolio/venv/ /open-portfolio/venv/
-ENV PATH=${PATH}:/open-portfolio/venv/bin PIP_USER=no
-
-######################################## op-dev #######################################
-# - Adds dev-specific dependencies to the virtualenv.
-# - Installs OpenPortfolio itself, editable, from sources.
-#######################################################################################
-FROM op-minimal AS op-dev
 RUN poetry install

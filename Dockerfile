@@ -1,7 +1,7 @@
 # Multi-staged container spec for OpenPortfolio. 
 # This spec will ultimately encompass containers for both development and production.
 
-####################################### op_base #######################################
+####################################### op-base #######################################
 # - Consists of an Ubuntu 20.04 image with the software from buildpack 
 # - Installs some additional system utilities which are generally expected on a Linux 
 #   machine, including `sudo` and `git`.
@@ -11,7 +11,7 @@
 # - Does not perform any user-installs (nor does it create any users), thus does not 
 #   include any software specific to OpenPortfolio.
 #######################################################################################
-FROM buildpack-deps:focal AS op_base
+FROM buildpack-deps:focal AS op-base
 RUN apt-get update
 RUN apt-get install -y \
     apt-utils \
@@ -36,7 +36,7 @@ ENV LANG=en_US.UTF-8
 RUN add-apt-repository -y ppa:git-core/ppa \
     && apt-get install -y git
 
-###################################### op_minimal #####################################
+###################################### op-minimal #####################################
 # - Introduces the op-admin user and pyenv with python3.9.
 # - Configures passwordless `sudo`.
 # - Adds `.bashrc.d` and sources it in `.bashrc`.
@@ -48,14 +48,15 @@ RUN add-apt-repository -y ppa:git-core/ppa \
 #   - This prevents the container from requiring a rebuild of all dependencies every
 #     time the sources change.
 #######################################################################################
-FROM op_base AS op_minimal
-ARG OP_USER=op-admin
-RUN useradd -l -u 30000 -G sudo -md /home/${OP_USER} -s \
+FROM op-base AS op-minimal
+ARG OP_USER=op-admin OP_WORKSPACE=/workspace
+ENV HOME=/home/${OP_USER}
+
+RUN useradd -l -u 30000 -G sudo -md ${HOME} -s \
     /bin/bash -p ${OP_USER} ${OP_USER} && \
     sed -i.bak -e 's/%sudo\s\+ALL=(ALL\(:ALL\)\?)\s\+ALL/%sudo ALL=NOPASSWD:ALL/g' \
     /etc/sudoers
 
-ENV HOME=/home/${OP_USER}
 WORKDIR ${HOME}
 USER ${OP_USER}
 RUN sudo echo "Running 'sudo' for ${OP_USER}." && \
@@ -79,8 +80,7 @@ RUN curl -fsSL \
 ENV POETRY_VERSION='1.1.7'
 RUN python3 -m pip install poetry=="${POETRY_VERSION}"
 ENV PIP_USER=no \
-    PATH="$PATH:${HOME}/.poetry/bin" \
-    OP_WORKSPACE=/workspace
+    PATH="${PATH}:${HOME}/.poetry/bin"
 RUN sudo mkdir -p ${OP_WORKSPACE}
 RUN sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
 
@@ -94,9 +94,23 @@ COPY pyproject.toml poetry.lock ./
 RUN . venv/bin/activate && poetry install --no-dev --no-root
 COPY ./ ./
 
-######################################## op_dev #######################################
+######################################## op-gitpod ####################################
+# - Creates the gitpod user with necessary configuration.
+# - Copies the dependencies from op-minimal to the gitpod user's workspace.
+#######################################################################################
+FROM gitpod/workspace-full:latest AS op-gitpod
+ARG OP_USER=op-admin OP_WORKSPACE=/workspace \
+    GITPOD_USER=gitpod GITPOD_WORKSPACE=/workspace
+
+USER gitpod
+ENV PIP_USER=no \
+    PATH="${PATH}:${HOME}/.poetry/bin"
+COPY --from=op-minimal --chown=gitpod:gitpod ${OP_WORKSPACE}/ ${GITPOD_WORKSPACE}
+COPY --from=op-minimal --chown=gitpod:gitpod /home/${OP_USER}/ /home/${GITPOD_USER}/
+
+######################################## op-dev #######################################
 # - Adds dev-specific dependencies to the virtualenv.
 # - Installs OpenPortfolio itself, editable, from sources.
 #######################################################################################
-FROM op_minimal AS op_dev
+FROM op-minimal AS op-dev
 RUN poetry install

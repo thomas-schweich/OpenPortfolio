@@ -5,7 +5,7 @@ ARG OP_PY_VERSION=3.9.6
 ARG OP_BUILD=/open-portfolio/build
 ARG OP_DEPS=/open-portfolio/deps
 ARG OP_PYTHON_DIR=${OP_DEPS}/python${OP_PY_VERSION}
-ARG OP_VENV_DIR=${OP_DEPS}/venv
+ARG OP_VENV_DIR=${OP_DEPS}/op-venv
 ARG OP_PYTHON=${OP_PYTHON_DIR}/bin/python3
 
 ####################################### op-base #######################################
@@ -100,7 +100,7 @@ WORKDIR ${OP_BUILD_PROJ}
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-dev --no-root
 
-######################################## op-gitpod ####################################
+###################################### op-gitpod ######################################
 # Extends gitpod/workspace-full:latest.
 # - Copies and configures the dependencies from op-minimal.
 #######################################################################################
@@ -109,7 +109,8 @@ ARG OP_PY_VERSION=3.9.6 OP_DEPS OP_PYTHON_DIR OP_VENV_DIR
 
 USER gitpod
 COPY --from=op-minimal --chown=gitpod:gitpod ${OP_DEPS} ${OP_DEPS}
-ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+RUN echo "export PATH=${OP_PYTHON_DIR}/bin:"'"${PATH}"' >> ${HOME}/.bashrc.d/op-init
+RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
 
 ######################################## op-dev #######################################
 # Extends op-base.
@@ -132,14 +133,15 @@ USER ${OP_USER}
 WORKDIR ${HOME}
 RUN sudo echo "Running 'sudo' for ${OP_USER}." && \
     mkdir ${HOME}/.bashrc.d && \
-    touch ${HOME}/.bashrc.d/init && \
     (echo; echo "for i in \$(ls \${HOME}/.bashrc.d/*); do source \$i; done"; echo) \
     >> ${HOME}/.bashrc
+RUN echo "export PATH=${OP_PYTHON_DIR}/bin:"'"${PATH}"' >> ${HOME}/.bashrc.d/op-init
+RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
 
 COPY --from=op-minimal --chown=${OP_USER}:${OP_USER} ${OP_DEPS} ${OP_DEPS}
-ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+ENV PATH=${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
 
 COPY ./ ${OP_WORKSPACE}
 
 WORKDIR ${OP_WORKSPACE}
-RUN poetry install
+RUN . ${OP_VENV_DIR}/bin/activate && poetry install

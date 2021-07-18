@@ -6,7 +6,4 @@ vscode:
     - ms-azuretools.vscode-docker
     - ms-python.python
 tasks:
-  - before: source ${HOME}/.poetry/env
-    command: PIP_USER=no poetry shell
-    env:
-      PIP_USER: no
+    - command: poetry shell

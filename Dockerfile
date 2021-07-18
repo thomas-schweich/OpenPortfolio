@@ -80,7 +80,7 @@ RUN curl -fsSL \
 ENV POETRY_VERSION='1.1.7' PIP_USER=no
 RUN sudo mkdir -p /open-portfolio/venv && \
     sudo chown ${OP_USER}:${OP_USER} /open-portfolio/venv 
-RUN python3 -m venv /open-portfolio/venv
+RUN python3 -m venv --copies /open-portfolio/venv
 RUN . /open-portfolio/venv/bin/activate && pip install poetry==${POETRY_VERSION}
 ENV PATH="${PATH}:/open-portfolio/venv/bin"
 RUN sudo mkdir -p ${OP_WORKSPACE} && sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
@@ -105,9 +105,6 @@ RUN pyenv install ${OP_PY_VERSION} && pyenv global ${OP_PY_VERSION}
 RUN sudo mkdir -p /open-portfolio/venv && sudo chown gitpod:gitpod /open-portfolio/venv 
 COPY --from=op-minimal --chown=${GITPOD_USER}:${GITPOD_USER} \
     /open-portfolio/venv/ /open-portfolio/venv/
-RUN export OP_PYTHON=$(dirname $(readlink /open-portfolio/venv/bin/python3)) && \
-    sudo mkdir -p ${OP_PYTHON} && \
-    sudo ln -sft ${OP_PYTHON} python3 $(which python3)
 ENV PATH=${PATH}:/open-portfolio/venv/bin PIP_USER=no
 
 ######################################## op-dev #######################################

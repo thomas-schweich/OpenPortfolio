@@ -49,7 +49,7 @@ RUN add-apt-repository -y ppa:git-core/ppa \
 #     time the sources change.
 #######################################################################################
 FROM op-base AS op-minimal
-ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000
+ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000 OP_PY_VERSION=3.9.6
 ENV HOME=/home/${OP_USER}
 
 RUN useradd -l -u 30000 -G sudo -md ${HOME} -s \
@@ -71,45 +71,44 @@ RUN curl -fsSL \
     echo 'eval "$(pyenv init -)"'; \
     echo 'eval "$(pyenv virtualenv-init -)"'; } >> ${HOME}/.bashrc.d/60-python \
     && pyenv update \
-    && pyenv install 3.9.6 \
-    && pyenv global 3.9.6 \
+    && pyenv install ${OP_PY_VERSION} \
+    && pyenv global ${OP_PY_VERSION} \
     && python3 -m pip install --no-cache-dir --upgrade pip \
     && python3 -m pip install --no-cache-dir --upgrade \
     setuptools wheel virtualenv \
     && sudo rm -rf /tmp/*
-ENV POETRY_VERSION='1.1.7'
-RUN python3 -m pip install poetry=="${POETRY_VERSION}"
-ENV PIP_USER=no \
-    PATH="${PATH}:${HOME}/.poetry/bin"
-RUN curl -sSL \
-    https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py \
-    | python - --version "${POETRY_VERSION}" && \
-    . $HOME/.poetry/env
-RUN sudo mkdir -p /open-portfolio/venv && sudo chown ${OP_USER}:${OP_USER} /open-portfolio/venv 
+ENV POETRY_VERSION='1.1.7' PIP_USER=no
+RUN sudo mkdir -p /open-portfolio/venv && \
+    sudo chown ${OP_USER}:${OP_USER} /open-portfolio/venv 
 RUN python3 -m venv /open-portfolio/venv
+RUN . /open-portfolio/venv/bin/activate && pip install poetry==${POETRY_VERSION}
+ENV PATH="${PATH}:/open-portfolio/venv/bin"
 RUN sudo mkdir -p ${OP_WORKSPACE} && sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-dev --no-root
 
 WORKDIR ${OP_WORKSPACE}
-COPY pyproject.toml poetry.lock ./
-RUN . /open-portfolio/venv/bin/activate && poetry install --no-dev --no-root
 COPY ./ ./
 
 ######################################## op-gitpod ####################################
 # Extends gitpod/workspace-full:latest.
-# - Installs poetry.
+# - Installs the correct version of python.
 # - Copies the virtualenv from op-minimal.
+# - Adds the open-portfolio/venv to PATH.
+# - Symlinks the target of python3 in the op-dev virtualenv to the local python.
 #######################################################################################
 FROM gitpod/workspace-full:latest AS op-gitpod
+ARG OP_PY_VERSION=3.9.6
 
 USER gitpod
-ENV PIP_USER=no \
-    PATH="${PATH}:${HOME}/.poetry/bin"
-RUN curl -sSL \
-    https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py \
-    | python - --version "${POETRY_VERSION}" && \
-    . $HOME/.poetry/env
+RUN pyenv install ${OP_PY_VERSION} && pyenv global ${OP_PY_VERSION}
+RUN sudo mkdir -p /open-portfolio/venv && sudo chown gitpod:gitpod /open-portfolio/venv 
 COPY --from=op-minimal --chown=${GITPOD_USER}:${GITPOD_USER} \
     /open-portfolio/venv/ /open-portfolio/venv/
+RUN export OP_PYTHON=$(dirname $(readlink /open-portfolio/venv/bin/python3)) && \
+    sudo mkdir -p ${OP_PYTHON} && \
+    sudo ln -sft ${OP_PYTHON} python3 $(which python3)
+ENV PATH=${PATH}:/open-portfolio/venv/bin PIP_USER=no
 
 ######################################## op-dev #######################################
 # - Adds dev-specific dependencies to the virtualenv.

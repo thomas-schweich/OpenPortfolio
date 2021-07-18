@@ -49,7 +49,7 @@ RUN add-apt-repository -y ppa:git-core/ppa \
 #     time the sources change.
 #######################################################################################
 FROM op-base AS op-minimal
-ARG OP_USER=op-admin OP_WORKSPACE=/workspace
+ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000
 ENV HOME=/home/${OP_USER}
 
 RUN useradd -l -u 30000 -G sudo -md ${HOME} -s \
@@ -81,32 +81,35 @@ ENV POETRY_VERSION='1.1.7'
 RUN python3 -m pip install poetry=="${POETRY_VERSION}"
 ENV PIP_USER=no \
     PATH="${PATH}:${HOME}/.poetry/bin"
-RUN sudo mkdir -p ${OP_WORKSPACE}
-RUN sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
-
-WORKDIR ${OP_WORKSPACE}
 RUN curl -sSL \
     https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py \
     | python - --version "${POETRY_VERSION}" && \
     . $HOME/.poetry/env
-RUN python3 -m venv venv
+RUN sudo mkdir -p /open-portfolio/venv && sudo chown ${OP_USER}:${OP_USER} /open-portfolio/venv 
+RUN python3 -m venv /open-portfolio/venv
+RUN sudo mkdir -p ${OP_WORKSPACE} && sudo chown ${OP_USER}:${OP_USER} ${OP_WORKSPACE}
+
+WORKDIR ${OP_WORKSPACE}
 COPY pyproject.toml poetry.lock ./
-RUN . venv/bin/activate && poetry install --no-dev --no-root
+RUN . /open-portfolio/venv/bin/activate && poetry install --no-dev --no-root
 COPY ./ ./
 
 ######################################## op-gitpod ####################################
-# - Creates the gitpod user with necessary configuration.
-# - Copies the dependencies from op-minimal to the gitpod user's workspace.
+# Extends gitpod/workspace-full:latest.
+# - Installs poetry.
+# - Copies the virtualenv from op-minimal.
 #######################################################################################
 FROM gitpod/workspace-full:latest AS op-gitpod
-ARG OP_USER=op-admin OP_WORKSPACE=/workspace \
-    GITPOD_USER=gitpod GITPOD_WORKSPACE=/workspace
 
 USER gitpod
 ENV PIP_USER=no \
     PATH="${PATH}:${HOME}/.poetry/bin"
-COPY --from=op-minimal --chown=gitpod:gitpod ${OP_WORKSPACE}/ ${GITPOD_WORKSPACE}
-COPY --from=op-minimal --chown=gitpod:gitpod /home/${OP_USER}/ /home/${GITPOD_USER}/
+RUN curl -sSL \
+    https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py \
+    | python - --version "${POETRY_VERSION}" && \
+    . $HOME/.poetry/env
+COPY --from=op-minimal --chown=${GITPOD_USER}:${GITPOD_USER} \
+    /open-portfolio/venv/ /open-portfolio/venv/
 
 ######################################## op-dev #######################################
 # - Adds dev-specific dependencies to the virtualenv.

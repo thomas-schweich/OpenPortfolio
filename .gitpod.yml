@@ -6,5 +6,8 @@ vscode:
     - ms-azuretools.vscode-docker
     - ms-python.python
 tasks:
-    - before: . ${HOME}/.poetry/env && . venv/bin/activate
+    - env:
+        PIP_USER: no
+        PATH: ${PATH}:${HOME}/.poetry/bin
+      before: . ${HOME}/.poetry/env && . /open-portfolio/venv/bin/activate
       command: poetry shell

@@ -5,6 +5,3 @@ vscode:
   extensions:
     - ms-azuretools.vscode-docker
     - ms-python.python
-tasks:
-    - before: . /open-portfolio/venv/bin/activate
-      command: poetry shell

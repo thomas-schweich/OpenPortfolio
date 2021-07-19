@@ -100,18 +100,6 @@ WORKDIR ${OP_BUILD_PROJ}
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-dev --no-root
 
-###################################### op-gitpod ######################################
-# Extends gitpod/workspace-full:latest.
-# - Copies and configures the dependencies from op-minimal.
-#######################################################################################
-FROM gitpod/workspace-full:latest AS op-gitpod
-ARG OP_PY_VERSION=3.9.6 OP_DEPS OP_PYTHON_DIR OP_VENV_DIR
-
-USER gitpod
-COPY --from=op-minimal --chown=gitpod:gitpod ${OP_DEPS} ${OP_DEPS}
-RUN echo "export PATH=${OP_PYTHON_DIR}/bin:"'"${PATH}"' >> ${HOME}/.bashrc.d/op-init
-RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
-
 ######################################## op-dev #######################################
 # Extends op-base.
 # - Creates and configures the op-admin user.

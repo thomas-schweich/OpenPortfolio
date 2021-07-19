@@ -1,13 +1,7 @@
-image:
-  file: .gitpod.Dockerfile
+image: thomasschweich/open-portfolio:op-gitpod
 ports:
 - port: 8000
 vscode:
   extensions:
     - ms-azuretools.vscode-docker
     - ms-python.python
-tasks:
-  - before: source ${HOME}/.poetry/env
-    command: poetry shell
-    env:
-      PIP_USER: no

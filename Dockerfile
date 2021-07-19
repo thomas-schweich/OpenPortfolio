@@ -122,6 +122,7 @@ RUN sudo echo "Running 'sudo' for ${OP_USER}." && \
     (echo; echo "for i in \$(ls \${HOME}/.bashrc.d/*); do source \$i; done"; echo) \
     >> ${HOME}/.bashrc
 RUN echo "export PATH=${OP_PYTHON_DIR}/bin:"'"${PATH}"' >> ${HOME}/.bashrc.d/op-init
+RUN echo "export PIP_USER=no" >> ${HOME}/.bashrc.d/op-init
 RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
 
 COPY --from=op-minimal --chown=${OP_USER}:${OP_USER} ${OP_DEPS} ${OP_DEPS}

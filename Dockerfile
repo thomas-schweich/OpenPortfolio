@@ -9,12 +9,8 @@ ARG OP_VENV_DIR=${OP_DEPS}/op-venv
 ARG OP_PYTHON=${OP_PYTHON_DIR}/bin/python3
 
 ####################################### op-base #######################################
-# - Consists of an Ubuntu 20.04 image with the software from buildpack 
-# - Installs some additional system utilities which are generally expected on a Linux 
-#   machine, including `sudo` and `git`.
-#   - `sudo` is included for use by *NON*-root users who are created down the line.
-#   - The root user should never use sudo to become another user, as this is a 
-#     security risk.
+# - Extends the Buildpack Ubuntu 20.04 image.
+# - Installs some additional system utilities.
 #######################################################################################
 FROM buildpack-deps:focal AS op-base
 RUN apt-get update

@@ -45,7 +45,8 @@ RUN add-apt-repository -y ppa:git-core/ppa \
 
 #################################### op-py-build ######################################
 # Extends op-base.
-# - Generates a self-contained python executable in the dependencies directory.
+# - Builds a self-contained python executable in the OP_DEPS directory from sources.
+# - Runs tests and sanity checks on the newly-built python.
 #######################################################################################
 FROM op-base AS op-py-build
 ARG OP_PY_VERSION OP_PYTHON_DIR OP_PYTHON OP_BUILD
@@ -79,17 +80,18 @@ RUN test "$(${OP_PYTHON} --version)" = "Python ${OP_PY_VERSION}"
 # - Copies the isolated python installation from op-py-build.
 # - Installs poetry into the isolated python.
 # - Adds the workspace directory with pyproject.toml + poetry.lock.
-# - Adds the venv containing poetry and all OpenPortfolio dependencies.
+# - Generates the virtualenv containing poetry and all OpenPortfolio dependencies.
 #######################################################################################
 FROM op-base AS op-minimal
-ARG OP_VENV_DIR OP_PYTHON OP_PYTHON_DIR OP_POETRY_VERSION='1.1.7' OP_BUILD OP_DEPS
+ARG OP_POETRY_VERSION='1.1.7' 
+ARG OP_VENV_DIR OP_PYTHON OP_PYTHON_DIR OP_BUILD OP_DEPS
 ENV OP_BUILD_PROJ=${OP_BUILD}/project
 
 COPY --from=op-py-build ${OP_DEPS} ${OP_DEPS}
 RUN ${OP_PYTHON} -m pip install --no-cache-dir --upgrade pip && \
     ${OP_PYTHON} -m pip install --no-cache-dir --upgrade setuptools wheel virtualenv
-ENV POETRY_VERSION='1.1.7' PIP_USER=no
-RUN ${OP_PYTHON} -m pip install --prefix=${OP_PYTHON_DIR} poetry==${POETRY_VERSION}
+ENV PIP_USER=no
+RUN ${OP_PYTHON} -m pip install --prefix=${OP_PYTHON_DIR} poetry==${OP_POETRY_VERSION}
 
 RUN mkdir -p ${OP_VENV_DIR}
 RUN ${OP_PYTHON} -m venv ${OP_VENV_DIR}
@@ -102,9 +104,9 @@ RUN poetry install --no-dev --no-root
 
 ######################################## op-dev #######################################
 # Extends op-base.
-# - Creates and configures the op-admin user.
-# - Copies dependencies from op-minimal.
-# - Creates the workspace and copies the OpenPortfolio sources into it.
+# - Creates and configures the OP_USER.
+# - Copies dependencies from op-minimal (including the isolated Python and virtualenv).
+# - Creates the workspace directory and copies all OpenPortfolio sources into it.
 # - Installs OpenPortfolio itself, editable, into the virtualenv.
 #######################################################################################
 FROM op-base AS op-dev

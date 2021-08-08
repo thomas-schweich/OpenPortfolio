@@ -17,7 +17,7 @@ OpenPortfolio will be a data-source agnostic portfolio tracker and visualizer. I
 
 #### Backend
 
-- The API will use a Flask webserver to serve Vega-Lite JSON specifications and a single main webpage.
+- The API will use a Flask or OpenAPI webserver to serve Vega-Lite JSON specifications and likely a single main webpage.
     - Production webserver and static asset server TBD.
 - Vega-Lite JSON specifications could be created directly and served as static assets.
     - However, generating the specifications using the Altair Python library coupled with well-tuned template caching mechanisms may prove to be more flexible.

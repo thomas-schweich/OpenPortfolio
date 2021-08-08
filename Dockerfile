@@ -76,7 +76,8 @@ RUN test "$(${OP_PYTHON} --version)" = "Python ${OP_PY_VERSION}"
 # - Copies the isolated python installation from op-py-build.
 # - Installs poetry into the isolated python.
 # - Adds the workspace directory with pyproject.toml + poetry.lock.
-# - Generates the virtualenv containing poetry and all OpenPortfolio dependencies.
+# - Generates the virtualenv containing poetry and all OpenPortfolio dependencies
+#   apart from development dependencies and OpenPortfolio itself.
 #######################################################################################
 FROM op-base AS op-minimal
 ARG OP_POETRY_VERSION='1.1.7' 
@@ -126,9 +127,11 @@ RUN echo "export PIP_USER=no" >> ${HOME}/.bashrc.d/op-init
 RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
 
 COPY --from=op-minimal --chown=${OP_USER}:${OP_USER} ${OP_DEPS} ${OP_DEPS}
-ENV PATH=${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+ENV PATH="${OP_PYTHON_DIR}/bin:${PATH}" PIP_USER=no
 
 COPY ./ ${OP_WORKSPACE}
 
 WORKDIR ${OP_WORKSPACE}
-RUN . ${OP_VENV_DIR}/bin/activate && poetry install
+RUN . ${OP_VENV_DIR}/bin/activate && \
+    poetry env use ${OP_VENV_DIR}/bin/python3 && \
+    poetry install

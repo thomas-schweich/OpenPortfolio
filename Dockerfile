@@ -7,6 +7,10 @@ ARG OP_DEPS=/open-portfolio/deps
 ARG OP_PYTHON_DIR=${OP_DEPS}/python${OP_PY_VERSION}
 ARG OP_VENV_DIR=${OP_DEPS}/op-venv
 ARG OP_PYTHON=${OP_PYTHON_DIR}/bin/python3
+ARG OP_USER=op-admin
+ARG OP_WORKSPACE=/workspace/OpenPortfolio
+ARG OP_UID=30000
+ARG OP_POETRY_VERSION=1.1.7
 
 ####################################### op-base #######################################
 # - Extends the Buildpack Ubuntu 20.04 image.
@@ -92,12 +96,15 @@ RUN ${OP_PYTHON} -m pip install --prefix=${OP_PYTHON_DIR} poetry==${OP_POETRY_VE
 
 RUN mkdir -p ${OP_VENV_DIR}
 RUN ${OP_PYTHON} -m venv ${OP_VENV_DIR}
-ENV PATH=${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH} PIP_USER=no
+ENV PATH="${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH}" \
+    PIP_USER=no \
+    POETRY_VIRTUALENVS_CREATE=false
 
 RUN mkdir -p ${OP_BUILD_PROJ}
 WORKDIR ${OP_BUILD_PROJ}
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-dev --no-root
+RUN . ${OP_VENV_DIR}/bin/activate && \
+    poetry install --no-dev --no-root
 
 ######################################## op-dev #######################################
 # Extends op-base.
@@ -107,8 +114,7 @@ RUN poetry install --no-dev --no-root
 # - Installs OpenPortfolio itself, editable, into the virtualenv.
 #######################################################################################
 FROM op-base AS op-dev
-ARG OP_PYTHON_DIR OP_VENV_DIR OP_DEPS
-ARG OP_USER=op-admin OP_WORKSPACE=/workspace OP_UID=30000
+ARG OP_PYTHON_DIR OP_VENV_DIR OP_DEPS OP_USER OP_WORKSPACE OP_UID OP_POETRY_VERSION
 
 ENV HOME=/home/${OP_USER}
 RUN useradd -l -u ${OP_UID} -G sudo -md ${HOME} -s \
@@ -127,11 +133,12 @@ RUN echo "export PIP_USER=no" >> ${HOME}/.bashrc.d/op-init
 RUN echo ". ${OP_VENV_DIR}/bin/activate" >> ${HOME}/.bashrc.d/op-init
 
 COPY --from=op-minimal --chown=${OP_USER}:${OP_USER} ${OP_DEPS} ${OP_DEPS}
-ENV PATH="${OP_PYTHON_DIR}/bin:${PATH}" PIP_USER=no
+ENV PATH="${OP_VENV_DIR}/bin:${OP_PYTHON_DIR}/bin:${PATH}" \
+    PIP_USER=no \
+    POETRY_VIRTUALENVS_CREATE=false
 
-COPY ./ ${OP_WORKSPACE}
+COPY . ${OP_WORKSPACE}
 
 WORKDIR ${OP_WORKSPACE}
 RUN . ${OP_VENV_DIR}/bin/activate && \
-    poetry env use ${OP_VENV_DIR}/bin/python3 && \
     poetry install
